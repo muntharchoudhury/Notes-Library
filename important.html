@@ -1,1 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes Library</title>
+<!--
+FIRESTORE RULES (Firebase console > Firestore Database > Rules). Replace everything with this and Publish:
 
+rules_version = '2';
+  
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /pdfs/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.addedBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['school','medium','subject','title','size','chunks','addedBy','addedAt'])
+        && request.resource.data.chunks is int && request.resource.data.chunks <= 205
+        && request.resource.data.title.size() < 150
+        && request.resource.data.school.size() < 100
+        && request.resource.data.subject.size() < 100;
+      allow delete: if request.auth != null && resource.data.addedBy == request.auth.uid;
+    }
+    match /chunks/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.addedBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['d','addedBy'])
+        && request.resource.data.d.size() < 800000;
+      allow delete: if request.auth != null && resource.data.addedBy == request.auth.uid;
+    }
+    match /users/{uid}/saved/{id} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+-->
+<style>
+:root{--bg:#0d0d12;--fg:#f5f5f7;--mut:#9a9aa8;--line:#3a3a48;--card:#16161d;--hl:#c6ff00}
+@media(prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#f4f2ec;--fg:#0d0d12;--mut:#5d5d6b;--line:#bdb9ad;--card:#fff}}
+:root[data-theme=light]{--bg:#f4f2ec;--fg:#0d0d12;--mut:#5d5d6b;--line:#bdb9ad;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:620px;margin:0 auto;padding:22px 16px 56px}
+h1{font:900 clamp(2.8rem,15vw,4.4rem)/.88 system-ui,sans-serif;letter-spacing:-.06em;margin:0 0 18px;text-transform:uppercase}
+h2{font:800 2rem/1.1 system-ui,sans-serif;letter-spacing:-.04em;margin:0 0 14px}
+label{display:block;font-weight:700;margin:6px 0 4px}
+input,select,button{font:inherit;width:100%;padding:12px;margin:0 0 10px;border:2px solid var(--line);border-radius:4px;background:var(--card);color:var(--fg)}
+button{cursor:pointer;font-weight:700;border-color:var(--fg)}
+button.pri{background:var(--hl);color:#0d0d12;box-shadow:4px 4px 0 var(--fg)}
+button.alt{background:transparent}
+button.g{background:#fff;color:#1f1f1f;display:flex;align-items:center;justify-content:center;gap:10px;border-color:#fff}
+.two{display:flex;gap:8px}.two button{flex:1}
+.or{text-align:center;color:var(--mut);margin:4px 0 10px}
+:focus-visible{outline:3px solid var(--hl);outline-offset:2px}
+#msg{padding:10px 12px;font-weight:700;border:2px solid var(--fg);margin:0 0 14px}
+#msg:empty{display:none}.bad{background:#ff3b30;color:#fff}.ok{background:var(--hl);color:#0d0d12}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tile{--c:#c6ff00;min-height:150px;margin:0;padding:14px;border:3px solid var(--fg);background:var(--c);color:#0d0d12;text-align:left;box-shadow:7px 7px 0 var(--fg);display:flex;flex-direction:column;justify-content:space-between;animation:up .5s both}
+.tile:nth-child(2){animation-delay:.07s}.tile:nth-child(3){animation-delay:.14s}.tile:nth-child(4){animation-delay:.21s}.tile:nth-child(5){animation-delay:.28s}
+.tile span{font-size:1.05rem}
+.tile b{font:900 3.6rem/1 system-ui,sans-serif;letter-spacing:-.05em}
+.tile:active{transform:translate(5px,5px);box-shadow:2px 2px 0 var(--fg)}
+.wide{grid-column:span 2}
+@keyframes up{from{opacity:0;transform:translateY(18px) rotate(-1.5deg)}}
+@media(prefers-reduced-motion:reduce){.tile{animation:none}}
+.back{width:auto;display:inline-block;padding:8px 14px;margin:0 0 14px;background:transparent}
+.item{background:var(--card);border:2px solid var(--fg);box-shadow:5px 5px 0 var(--hl);padding:12px;margin:0 6px 16px 0}
+.item b{display:block;font-size:1.05rem}
+.item small{color:var(--mut)}
+.row{display:flex;gap:6px;margin-top:10px}
+.row button{flex:1;margin:0;padding:8px 6px;font-size:.9rem}
+.hide{display:none!important}
+.note{color:var(--mut);font-size:.9rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Notes<br>Library</h1>
+<p id="msg" role="status"></p>
+
+<div id="loginBox">
+  <button id="google" class="g"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continue with Google</button>
+  <p class="or">or use your email</p>
+  <input id="email" type="email" placeholder="Email" autocomplete="email">
+  <input id="pass" type="password" placeholder="Password (8+ characters)" autocomplete="current-password">
+  <button id="login" class="pri">Login</button>
+  <div class="two"><button id="signup" class="alt">Create account</button><button id="forgot" class="alt">Forgot password</button></div>
+  <button id="link" class="alt">Email me a login link</button>
+  <button id="guest" class="alt">Continue as guest (view only)</button>
+</div>
+
+<div id="app" class="hide">
+  <div id="home" class="grid">
+    <button class="tile wide" data-go="browse" style="--c:#c6ff00"><span>Browse notes</span><b id="nBrowse">0</b></button>
+    <button class="tile" id="tAdd" data-go="add" style="--c:#ff5a1f"><span>Add PDF</span><b>+</b></button>
+    <button class="tile" data-go="saved" style="--c:#ff4fd8"><span>My inventory</span><b id="nSaved">0</b></button>
+    <button class="tile" id="tMine" data-go="mine" style="--c:#00e5c3"><span>My uploads</span><b id="nMine">0</b></button>
+    <button class="tile" data-go="settings" style="--c:#8c9bff"><span>Settings</span><b>···</b></button>
+  </div>
+
+  <section id="browse" class="hide">
+    <button class="back" data-go="home">← Home</button><h2>Browse</h2>
+    <select id="fSchool" aria-label="School"></select>
+    <select id="fMedium" aria-label="Subject"></select>
+    <select id="fSubject" aria-label="Type"></select>
+    <div id="list"></div>
+  </section>
+
+  <section id="add" class="hide">
+    <button class="back" data-go="home">← Home</button><h2>Add PDF</h2>
+    <input id="aSchool" list="dlSchool" placeholder="School name" maxlength="99">
+    <select id="aMedium" aria-label="Subject"></select>
+    <input id="aSubject" list="dlSubject" placeholder="MCQs, Q&amp;A or Both" maxlength="99">
+    <input id="aTitle" placeholder="PDF title" maxlength="149">
+    <input id="aFile" type="file" accept="application/pdf">
+    <datalist id="dlSchool"></datalist><datalist id="dlSubject"></datalist>
+    <button id="addBtn" class="pri">Upload PDF</button>
+    <p class="note">Pick the school from suggestions when it already exists. PDF up to 100 MB. Add only notes that are yours or that you may share.</p>
+  </section>
+
+  <section id="saved" class="hide"><button class="back" data-go="home">← Home</button><h2>My inventory</h2><div id="savedList"></div></section>
+  <section id="mine" class="hide"><button class="back" data-go="home">← Home</button><h2>My uploads</h2><div id="mineList"></div></section>
+
+  <section id="settings" class="hide">
+    <button class="back" data-go="home">← Home</button><h2>Settings</h2>
+    <p id="who" class="note"></p>
+    <label for="sTheme">Theme</label>
+    <select id="sTheme"><option value="auto">Auto</option><option value="dark">Dark</option><option value="light">Light</option></select>
+    <label for="sDef">Default subject filter</label>
+    <select id="sDef"></select>
+    <button id="sReset" class="alt">Send password reset email</button>
+    <button id="logout" class="pri">Log out</button>
+  </section>
+</div>
+</main>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,GoogleAuthProvider,signInWithPopup,signInAnonymously,sendPasswordResetEmail,sendSignInLinkToEmail,isSignInWithEmailLink,signInWithEmailLink,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {initializeFirestore,collection,deleteDoc,doc,getDoc,setDoc,onSnapshot,query,orderBy,limit,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const cfg={apiKey:"AIzaSyCMt2sQLcRtsf-FdLgfJtO_s2Jdo80QhCY",authDomain:"notelibrary-07.firebaseapp.com",projectId:"notelibrary-07",appId:"1:742013987944:web:9e2a7036098aea65321fdd"};
+const SUBJECTS=["Subjects","English","Bengali","Mathematics","Science","Social Science"];
+const VIEWS=["home","browse","add","saved","mine","settings"];
+
+const $=id=>document.getElementById(id);
+const msg=(t,ok)=>{const m=$("msg");m.textContent=t||"";m.className=t?(ok?"ok":"bad"):""};
+const mk=(tag,txt,cls)=>{const e=document.createElement(tag);e.textContent=txt||"";if(cls)e.className=cls;return e};
+const ls={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+
+const app=initializeApp(cfg),auth=getAuth(app),db=initializeFirestore(app,{experimentalAutoDetectLongPolling:true});
+let user=null,all=[],saved=new Map(),unsubs=[];
+
+function opts(sel,vals,first){
+  const cur=sel.value;
+  sel.replaceChildren(new Option(first,""),...vals.map(v=>new Option(v,v)));
+  sel.value=vals.includes(cur)?cur:"";
+}
+opts($("fMedium"),SUBJECTS,"All subjects");
+opts($("sDef"),SUBJECTS,"All subjects");
+$("aMedium").replaceChildren(...SUBJECTS.map(v=>new Option(v,v)));
+$("fMedium").value=$("sDef").value=ls.get("medium")||"";
+$("aMedium").value=$("fMedium").value||SUBJECTS[0];
+$("email").value=ls.get("em")||"";
+
+const applyTheme=()=>{const t=ls.get("theme")||"auto";$("sTheme").value=t;t==="auto"?document.documentElement.removeAttribute("data-theme"):document.documentElement.dataset.theme=t};
+applyTheme();
+$("sTheme").onchange=()=>{ls.set("theme",$("sTheme").value);applyTheme()};
+$("sDef").onchange=()=>{ls.set("medium",$("sDef").value);$("fMedium").value=$("sDef").value;paint()};
+
+/* navigation: every section has a Home button, and the phone back button works too */
+const show=v=>{VIEWS.forEach(x=>$(x).classList.toggle("hide",x!==v));scrollTo(0,0)};
+const route=()=>{
+  let v=location.hash.slice(1);
+  if(!user||!VIEWS.includes(v)||(user.isAnonymous&&(v==="add"||v==="mine")))v="home";
+  show(v);
+};
+addEventListener("hashchange",route);
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{location.hash=b.dataset.go});
+
+/* login */
+const E={"auth/invalid-credential":"Wrong email or password.","auth/wrong-password":"Wrong email or password.","auth/user-not-found":"No account with this email.","auth/email-already-in-use":"This email already has an account. Use Login or Forgot password. If you joined with Google, use the Google button.","auth/weak-password":"Password is too weak. Use 8+ characters.","auth/invalid-email":"That email does not look right.","auth/missing-password":"Type your password.","auth/missing-email":"Type your email first.","auth/operation-not-allowed":"This login method is not turned on in Firebase console yet.","auth/popup-closed-by-user":"","auth/cancelled-popup-request":"","auth/popup-blocked":"Popup blocked. Allow popups and try again.","auth/network-request-failed":"No internet connection.","auth/too-many-requests":"Too many tries. Wait a few minutes.","auth/unauthorized-domain":"This website address is not in Firebase Authorized domains."};
+const fail=e=>msg(E[e.code]??(e.code||"Something went wrong"));
+const em=()=>$("email").value.trim();
+$("login").onclick=()=>{ls.set("em",em());signInWithEmailAndPassword(auth,em(),$("pass").value).catch(fail)};
+$("signup").onclick=()=>{
+  if($("pass").value.length<8)return msg("Password must be at least 8 characters.");
+  ls.set("em",em());createUserWithEmailAndPassword(auth,em(),$("pass").value).catch(fail);
+};
+const gp=new GoogleAuthProvider();gp.setCustomParameters({prompt:"select_account"});
+$("google").onclick=()=>signInWithPopup(auth,gp).catch(fail);
+$("guest").onclick=()=>signInAnonymously(auth).catch(fail);
+$("forgot").onclick=()=>em()?sendPasswordResetEmail(auth,em()).then(()=>msg("If this email has an account, a reset link was sent. Check spam too.",1)).catch(fail):msg("Type your email first.");
+$("link").onclick=()=>{
+  if(!em())return msg("Type your email first.");
+  sendSignInLinkToEmail(auth,em(),{url:location.origin+location.pathname,handleCodeInApp:true})
+    .then(()=>{ls.set("le",em());msg("Login link sent. Open it on this phone.",1)}).catch(fail);
+};
+if(isSignInWithEmailLink(auth,location.href)){
+  const e=ls.get("le")||prompt("Confirm your email");
+  signInWithEmailLink(auth,e,location.href).then(()=>history.replaceState(null,"",location.pathname+"#home")).catch(fail);
+}
+$("logout").onclick=()=>confirm("Log out?")&&signOut(auth).then(()=>msg("You are logged out.",1));
+$("sReset").onclick=()=>user&&user.email?sendPasswordResetEmail(auth,user.email).then(()=>msg("Reset link sent to "+user.email,1)).catch(fail):msg("Guest accounts have no password.");
+
+/* data */
+const uniq=k=>[...new Set(all.map(p=>p[k]))].sort((a,b)=>a.localeCompare(b));
+function fill(){
+  opts($("fSchool"),uniq("school"),"All schools");
+  const sc=$("fSchool").value,md=$("fMedium").value;
+  opts($("fSubject"),[...new Set(all.filter(p=>(!sc||p.school===sc)&&(!md||p.medium===md)).map(p=>p.subject))].sort((a,b)=>a.localeCompare(b)),"All types");
+  $("dlSchool").replaceChildren(...uniq("school").map(v=>new Option(v)));
+  $("dlSubject").replaceChildren(...uniq("subject").map(v=>new Option(v)));
+}
+function card(p,id){
+  const d=mk("div","","item"),r=mk("div","","row");
+  const a=mk("button","Open");a.onclick=()=>openPdf(id,p);
+  const has=saved.has(id);
+  const sv=mk("button",has?"Remove from inventory":"Save to inventory","alt");
+  sv.onclick=()=>has
+    ?deleteDoc(doc(db,"users",user.uid,"saved",id))
+    :setDoc(doc(db,"users",user.uid,"saved",id),{title:p.title,school:p.school,medium:p.medium,subject:p.subject,chunks:p.chunks});
+  r.append(a,sv);
+  if(p.addedBy===user.uid){
+    const x=mk("button","Delete","alt");
+    x.onclick=()=>confirm("Delete this PDF for everyone?")&&delPdf(id,p);
+    r.append(x);
+  }
+  d.append(mk("b",p.title),mk("small",p.school+" · "+p.medium+" · "+p.subject),r);
+  return d;
+}
+const put=(el,rows,empty)=>el.replaceChildren(...(rows.length?rows:[mk("p",empty,"note")]));
+function paint(){
+  if(!user)return;
+  fill();
+  const sc=$("fSchool").value,md=$("fMedium").value,sb=$("fSubject").value;
+  const rows=all.filter(p=>(!sc||p.school===sc)&&(!md||p.medium===md)&&(!sb||p.subject===sb));
+  const mine=all.filter(p=>p.addedBy===user.uid);
+  put($("list"),rows.map(p=>card(p,p.id)),"No PDFs here yet.");
+  put($("mineList"),mine.map(p=>card(p,p.id)),"You have not uploaded any PDF yet.");
+  put($("savedList"),[...saved].map(([id,p])=>card(p,id)),"Your inventory is empty. Save a PDF from Browse.");
+  $("nBrowse").textContent=all.length;$("nMine").textContent=mine.length;$("nSaved").textContent=saved.size;
+}
+$("fSchool").onchange=paint;$("fSubject").onchange=paint;
+$("fMedium").onchange=()=>{ls.set("medium",$("fMedium").value);$("sDef").value=$("fMedium").value;paint()};
+
+async function openPdf(id,p){
+  const w=window.open("","_blank");
+  try{
+    msg("Loading PDF...",1);
+    const parts=await Promise.all(Array.from({length:p.chunks},(_,i)=>getDoc(doc(db,"chunks",id+"_"+i))));
+    const bin=atob(parts.map(s=>s.data().d).join(""));
+    const u=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+    const url=URL.createObjectURL(new Blob([u],{type:"application/pdf"}));
+    msg();
+    if(w)w.location.href=url;
+    else{const a=document.createElement("a");a.href=url;a.download=p.title+".pdf";a.click()}
+  }catch(e){if(w)w.close();msg("Could not load this PDF.")}
+}
+async function delPdf(id,p){
+  try{
+    await deleteDoc(doc(db,"pdfs",id));
+    await Promise.all(Array.from({length:p.chunks},(_,i)=>deleteDoc(doc(db,"chunks",id+"_"+i))));
+  }catch(e){msg(e.code||"Delete failed.")}
+}
+
+const MAX=100*1024*1024,CH=700000;
+const wt=p=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({code:"timeout"}),120000))]);
+$("addBtn").onclick=async()=>{
+  const g=id=>$(id).value.trim(),f=$("aFile").files[0];
+  const p={school:g("aSchool"),medium:$("aMedium").value,subject:g("aSubject"),title:g("aTitle")};
+  if(!p.school||!p.subject||!p.title||!f)return msg("Fill in every field and choose a PDF.");
+  if(f.type!=="application/pdf")return msg("Only PDF files are allowed.");
+  if(f.size>MAX)return msg("This PDF is larger than 100 MB.");
+  $("addBtn").disabled=true;
+  try{
+    msg("Uploading...Your PDF.",1);
+    const b64=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(",")[1]);r.onerror=no;r.readAsDataURL(f)});
+    const ref=doc(collection(db,"pdfs")),n=Math.ceil(b64.length/CH);
+    for(let i=0;i<n;i++){msg("Uploading part "+(i+1)+" of "+n+"...",1);await wt(setDoc(doc(db,"chunks",ref.id+"_"+i),{d:b64.slice(i*CH,(i+1)*CH),addedBy:user.uid}))}
+    await wt(setDoc(ref,{...p,size:f.size,chunks:n,addedBy:user.uid,addedAt:serverTimestamp()}));
+    ["aTitle","aFile"].forEach(i=>$(i).value="");
+    ["fSchool","fMedium","fSubject"].forEach(i=>$(i).value="");
+    msg("PDF uploaded.",1);location.hash="mine";
+  }catch(e){msg(e.code==="timeout"?"Server is not responding. Check that Firestore Database is created in Firebase console.":e.code==="permission-denied"?"Permission denied. Publish the new Firestore rules (top of this file).":(e.code||"Could not upload the PDF."))}
+  $("addBtn").disabled=false;
+};
+
+onAuthStateChanged(auth,u=>{
+  user=u;unsubs.forEach(f=>f());unsubs=[];
+  $("loginBox").classList.toggle("hide",!!u);
+  $("app").classList.toggle("hide",!u);
+  if(!u){all=[];saved=new Map();return}
+  if(!$("msg").classList.contains("ok"))msg();
+  $("who").textContent=u.isAnonymous?"Signed in as guest (view only).":"Signed in as "+(u.email||u.displayName);
+  ["tAdd","tMine"].forEach(i=>$(i).classList.toggle("hide",u.isAnonymous));
+  route();
+  unsubs.push(onSnapshot(query(collection(db,"pdfs"),orderBy("addedAt","desc"),limit(1000)),
+    s=>{all=s.docs.map(d=>({id:d.id,...d.data()}));paint()},e=>msg(e.code)));
+  unsubs.push(onSnapshot(collection(db,"users",u.uid,"saved"),
+    s=>{saved=new Map(s.docs.map(d=>[d.id,d.data()]));paint()},e=>msg(e.code)));
+});
+</script>
+</body>
+    </html>
+    
