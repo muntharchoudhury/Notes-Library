@@ -113,6 +113,7 @@ button.g{background:#fff;color:#1f1f1f;display:flex;align-items:center;justify-c
     <select id="fSchool" aria-label="School"></select>
     <select id="fMedium" aria-label="Subject"></select>
     <select id="fSubject" aria-label="Type"></select>
+    <select id="fClass" aria-label="Class"></select>
     <div id="list"></div>
   </section>
 
@@ -120,7 +121,8 @@ button.g{background:#fff;color:#1f1f1f;display:flex;align-items:center;justify-c
     <button class="back" data-go="home">← Home</button><h2>Add PDF</h2>
     <input id="aSchool" list="dlSchool" placeholder="School or Center name" maxlength="99">
     <input id="aClass" list="dlClass" placeholder="Class or Studying" maxlength="99">
-    <select id="aMedium" aria-label="Subject"></select>
+    <select id="aMedium" aria-label="Subjects"></select>
+    <select id="aClass" aria-label="Classes"></select>
     <input id="aSubject" list="dlSubject" placeholder="MCQs, Q&amp;A or Both" maxlength="99">
     <input id="aTitle" placeholder="PDF title" maxlength="149">
     <input id="aFile" type="file" accept="application/pdf">
@@ -152,6 +154,7 @@ import {initializeFirestore,collection,deleteDoc,doc,getDoc,setDoc,onSnapshot,qu
 
 const cfg={apiKey:"AIzaSyCMt2sQLcRtsf-FdLgfJtO_s2Jdo80QhCY",authDomain:"notelibrary-07.firebaseapp.com",projectId:"notelibrary-07",appId:"1:742013987944:web:9e2a7036098aea65321fdd"};
 const SUBJECTS=["Subjects","English","Bengali","Mathematics","Science","Social Science"];
+const CLASSES=["Class 9","Class 10","Class 11","Class 12"];
 const VIEWS=["home","browse","add","saved","mine","settings"];
 
 const $=id=>document.getElementById(id);
@@ -223,6 +226,9 @@ function fill(){
   $("dlSchool").replaceChildren(...uniq("school").map(v=>new Option(v)));
   $("dlSubject").replaceChildren(...uniq("subject").map(v=>new Option(v)));
 }
+  opts($("fClass"),CLASSES,"All classes");
+  $("aClass").replaceChildren(new Option("Select class",""),...CLASSES.map(v=>new Option(v,v)));
+  
 function card(p,id){
   const d=mk("div","","item"),r=mk("div","","row");
   const a=mk("button","Open");a.onclick=()=>openPdf(id,p);
