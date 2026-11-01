@@ -225,10 +225,9 @@ function fill(){
   opts($("fSubject"),[...new Set(all.filter(p=>(!sc||p.school===sc)&&(!md||p.medium===md)).map(p=>p.subject))].sort((a,b)=>a.localeCompare(b)),"All types");
   $("dlSchool").replaceChildren(...uniq("school").map(v=>new Option(v)));
   $("dlSubject").replaceChildren(...uniq("subject").map(v=>new Option(v)));
+  $("dlClass").replaceChildren(...uniq("class").map(v=>new Option(v)));
 }
-  opts($("fClass"),CLASSES,"All classes");
-  $("aClass").replaceChildren(new Option("Select class",""),...CLASSES.map(v=>new Option(v,v)));
-  
+
 function card(p,id){
   const d=mk("div","","item"),r=mk("div","","row");
   const a=mk("button","Open");a.onclick=()=>openPdf(id,p);
