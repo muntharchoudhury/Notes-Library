@@ -287,7 +287,8 @@ const wt=p=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({code:"timeout
 $("addBtn").onclick=async()=>{
   const g=id=>$(id).value.trim(),f=$("aFile").files[0];
   const p={school:g("aSchool"),medium:$("aMedium").value,subject:g("aSubject"),title:g("aTitle")};
-  if(!p.school||!p.subject||!p.title||!f)return msg("Fill in every field and choose a PDF.");
+  const p={class:g("aClass"),medium:$("aClaaa").value,subject:g("aClass"),title:g("aTitle")};
+  if(!p.school||!p.class||!p.subject||!p.title||!f)return msg("Fill in every field and choose a PDF.");
   if(f.type!=="application/pdf")return msg("Only PDF files are allowed.");
   if(f.size>MAX)return msg("This PDF is larger than 100 MB.");
   $("addBtn").disabled=true;
