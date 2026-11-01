@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notes Library</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0d12">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <!--
 FIRESTORE RULES (Firebase console > Firestore Database > Rules). Replace everything with this and Publish:
 
@@ -306,6 +312,6 @@ onAuthStateChanged(auth,u=>{
     s=>{saved=new Map(s.docs.map(d=>[d.id,d.data()]));paint()},e=>msg(e.code)));
 });
 </script>
+<script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));</script>
 </body>
-    </html>
-    
+</html>
