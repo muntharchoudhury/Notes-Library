@@ -1,8 +1,8 @@
 {
   "name": "Notes Library",
   "short_name": "Notes",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/Notes-Library/",
+  "scope": "/Notes-Library/",
   "display": "standalone",
   "background_color": "#0d0d12",
   "theme_color": "#0d0d12",
