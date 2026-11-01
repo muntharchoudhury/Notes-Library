@@ -1,7 +1,6 @@
 {
   "name": "Notes Library",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/Notes-Library/important.html",
   "scope": "/Notes-Library/",
   "display": "standalone",
   "background_color": "#0d0d12",
